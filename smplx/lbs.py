@@ -136,12 +136,8 @@ def vertices2landmarks(
     batch_size, num_verts = vertices.shape[:2]
     device = vertices.device
 
-    lmk_faces = torch.index_select(faces, 0, lmk_faces_idx.view(-1).to(torch.long)).view(
+    lmk_faces = torch.index_select(faces, 0, lmk_faces_idx.view(-1)).view(
         batch_size, -1, 3)
-                        #The '.to(torch.long)'.
-                        # added to make the trace work in c++,
-                        # otherwise you get a runtime error in c++:
-                        # 'index_select(): Expected dtype int32 or int64 for index'
 
     lmk_faces += torch.arange(
         batch_size, dtype=torch.long, device=device).view(-1, 1, 1) * num_verts
@@ -232,7 +228,7 @@ def lbs(
 
     v_posed = pose_offsets + v_shaped
     # 4. Get the global joint location
-    J_transformed, A = batch_rigid_transform(rot_mats, J, parents, dtype=dtype)
+    J_transformed, A, transforms = batch_rigid_transform(rot_mats, J, parents, dtype=dtype)
 
     # 5. Do skinning:
     # W is N x V x (J + 1)
@@ -249,7 +245,7 @@ def lbs(
 
     verts = v_homo[:, :, :3, 0]
 
-    return verts, J_transformed
+    return verts, J_transformed, A, transforms
 
 
 def vertices2joints(J_regressor: Tensor, vertices: Tensor) -> Tensor:
@@ -402,4 +398,4 @@ def batch_rigid_transform(
     rel_transforms = transforms - F.pad(
         torch.matmul(transforms, joints_homogen), [3, 0, 0, 0, 0, 0, 0, 0])
 
-    return posed_joints, rel_transforms
+    return posed_joints, rel_transforms, transforms[:, :, :3, :3]
